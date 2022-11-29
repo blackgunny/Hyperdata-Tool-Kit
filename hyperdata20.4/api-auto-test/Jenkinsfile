@@ -1,0 +1,1070 @@
+/*
+3.13. 파일 용량 제한 migrate API
+4.12. 정형,반정형 데이터 다운로드 API(구 방식)
+4.13. 비정형 데이터 다운로드 API
+*/
+
+// Hyperdata API
+import groovy.json.JsonSlurperClassic
+import groovy.json.JsonBuilder
+import groovy.json.JsonOutput
+import java.util.Date
+
+def hyperdata_url = ''
+def encrypt = ''
+def token = ''
+
+// admin id, pw
+def admin_info = []
+// hyperdata new account info : id, pw, name, email, phone numbper, change phone number
+def test_accounts_info = [:]
+// hyperdata new account to encrypt
+def test_accounts_info_encrypt = [:]
+
+// hyperdata new account groupid info #204
+def test_accounts_groupid_info = [:]
+
+// hyperdata new local project info : name, author, description
+def local_project_info = []
+// hyperdat new data source info : id, pw
+def db_info = []
+
+def global_project_id = '1'
+def pdp_project_id = '4'
+def local_project_id = ''
+def datasource_id = ''
+def object_ids = [:]
+
+
+// hyperdat new data object info : table name, type
+def objects_meta = [:]
+def objects_col_info =[:]
+def objects_col_dto = [:]
+def shared_object_list = []
+
+
+
+// AES256 암/복호화에 필요한 key
+def key = ''
+
+
+def today = new Date(); 
+def tz = TimeZone.getTimeZone('Asia/Seoul');
+def expirationTime = today;
+
+def hyperdata_state_file = ".hyperdata_state.json"
+def hyperdata_variable_file = "hyperdata_variable.json"
+
+
+@NonCPS
+def jsonParse(def json) {
+	try{
+		return new groovy.json.JsonSlurperClassic().parseText(json)
+	}catch(groovy.json.JsonException e){
+		//println(e)
+		return json
+	}
+}
+
+def stateFileUpdate(def file, def item_key, def data_key, def data_value, def method){
+	json = new groovy.json.JsonSlurperClassic().parse(file)
+
+	if (method == "push") json["${item_key}"][data_key] = data_value
+	else if (method == "pop") {
+		if (data_key.getClass() == ArrayList) {
+			data_key.each{json["${item_key}"].remove(it)}		
+		}
+		else json["${item_key}"].remove(data_key)
+	}else{
+		println("Dose not fount method : ${method}")
+		exit(1)
+	}
+
+	// Debug
+	//println("[DEBUG]\n${json}")
+	json_str = JsonOutput.toJson(json)
+	json_beauty = JsonOutput.prettyPrint(json_str)
+	file.write(json_beauty)
+}
+
+def requestAPI(def filepath, def parsing_data){
+	// Read file (type: Text)
+	json_text = new File(filepath).getText()
+
+ 	// data parsing
+ 	for(data in parsing_data){ 		
+ 		value = ""
+		if (data.value instanceof java.util.ArrayList) value = data.value.join('","')
+		else value = data.value
+
+		// empty data
+		if (!value.find()) json_text = json_text.replace("\"{${data.key}}\"", value)
+		else json_text = json_text.replace("{${data.key}}", value) 		
+ 	}
+
+ 	// Text to Json
+ 	json = jsonParse(json_text)
+
+ 	url = json['url']
+	method = json['method']
+	headers = json['header']
+	data_raw = ""
+	if (json['data_raw'] != "" ) data_raw = new JsonBuilder(json['data_raw']).toString()
+	
+	// Debug
+	//println("[DEBUG]\n${json}")
+
+	// header parsing
+	customHeaders_gen = []
+	idx = 0			
+	for (header in headers){
+		if (header.value != ""){
+			customHeaders_gen[idx] = [maskValue: false, name: header.key, value: header.value]
+			idx++
+		}			
+	}				
+
+	// http request
+	request = httpRequest customHeaders: customHeaders_gen, httpMode: method, ignoreSslErrors: true, url: url, requestBody: data_raw, consoleLogResponseBody: true 	
+
+	if (request.content != ""){
+ 		content = jsonParse(request.content)
+ 		return content
+ 	}else{
+ 		return 'no content'
+ 	}
+
+}
+
+
+node {
+stage ('init') {
+
+	workspace_path = sh(script:"pwd", returnStdout: true).trim();
+	state_file = new File("${workspace_path}/${hyperdata_state_file}")	
+
+	stage('get_variable_from_json_file'){
+		println("stage : get_variable_from_json_file")
+		variable_file = new File("${workspace_path}/${hyperdata_variable_file}")
+		variables = new groovy.json.JsonSlurperClassic().parse(variable_file)
+
+		hyperdata_url = variables["hyperdata_url"]
+		test_accounts_info = variables["test_accounts_info"]
+		admin_info = variables["admin_info"]
+		local_project_info = variables["local_project_info"]
+		db_info = variables["db_info"]
+		objects_meta = variables["objects_meta"]
+	}
+
+	// 1.1. 데이터 암호화 API
+	stage('101_get_encrypt') {
+		println("stage : 101_get_encrypt")
+		filename = "101_get_encrypt.json"		
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"id_list" : admin_info
+		]
+ 		
+ 		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 		
+		encrypt = content.dto.idList
+	}
+
+	// 1.2. 데이터 복호화 API
+	stage('102_get_decrypt') {
+		println("stage : 102_get_decrypt")
+		filename = "102_get_decrypt.json"
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"id_list" : encrypt
+		]
+
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 				
+	}
+
+	// 2.1. User 인증 API
+	stage('201_get_token') {
+		println("stage : 201_get_token")
+		filename = "201_get_token.json"
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"user_id_enc" : encrypt[0],
+			"user_pw_enc" : encrypt[1]
+		]
+
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		token = content.dto.token
+	}
+
+	// 4.2 Data Source 암호화 키 조회 API
+    stage('402_get_key'){
+    	println("stage : 402_get_key")
+    	filename = "402_get_key.json"
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"project_id" : global_project_id,
+			"token" : token,
+			"user_id" : admin_info[0]
+		]
+
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		key = content
+    }
+
+} // stage init
+
+stage('clear_set'){
+	state_json = new groovy.json.JsonSlurperClassic().parse(state_file)
+
+	// 5.8. 데이터 공유 해제 API
+	if (state_json["shared_data_objects"].size() != 0){
+		stage('clear_shared_do'){
+			println("stage : clear_shared_do")    				
+			state_json["shared_data_objects"].each{
+
+				delete_shared_do = it
+				
+				delete_shared_do.value.each{
+
+					filename = "508_undo_share.json"
+					parsing_data =[
+			    		"hyperdata_url" : hyperdata_url,
+			    		"local_project_id"	 : it.key,
+			    		"dataobject_id"	 : it.value,
+			    		"token" : token,
+			    		"user_id" : admin_info[0]
+			    	]
+
+			    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)	
+
+			    	stateFileUpdate(state_file, "shared_data_objects", delete_shared_do.key, it, "pop") // hypertdata shared data delete from state file							    	
+				}
+		    	
+	   		}
+		}
+	}
+
+	// 5.3. 데이터 공개 해제 API
+	// 5.4. 공개해제 데이터 메타삭제 API
+	if (state_json["exported_data_objects"].size() != 0){
+		
+		stage('clear_exported_do & clear_exported_meta'){
+			println("stage : clear_exported_do & clear_exported_meta")
+				
+			state_json["exported_data_objects"].each{
+				delete_exported_do = it
+
+				parsing_data =[
+		    		"hyperdata_url" : hyperdata_url,
+		    		"pdp_project_id" : pdp_project_id,
+		    		"dataobject_id"	 : it.value,
+		    		"token" : token,
+		    		"user_id" : admin_info[0]
+		    	]
+		    	filename = "503_undo_export_do.json"
+		    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)			    	
+
+		    	filename = "504_undo_export_meta.json"
+		    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)	
+
+		    	stateFileUpdate(state_file, "exported_data_objects", delete_exported_do.key, delete_exported_do.value, "pop") // hypertdata shared data delete from state file 				
+    		}    		
+		}    	
+	}	    		
+
+
+
+	// 4.6. 데이터(DS, DO) 삭제 API
+	if (state_json["data_objects"].size() != 0 || state_json["data_sources"].size() != 0){
+		stage('clear_ds_do'){
+			println("stage : clear_ds_do")
+			delete_objects = ''
+			delete_datasources = ''
+
+			if (state_json["data_objects"].size() != 0 ) delete_objects = state_json["data_objects"].values()
+			if (state_json["data_sources"].size() != 0 ) delete_datasources = state_json["data_sources"].values()
+			
+				
+			filename = "406_delete_ds_do.json"
+			parsing_data =[
+				"hyperdata_url" : hyperdata_url,
+				"token" : token,		
+				"user_id" : admin_info[0],
+				// 삭제하고자 하는 DataSource의 번호
+				"data_source_id_list" : delete_datasources,
+				// 삭제하고자 하는 DataObject들의 번호 
+	    		//DataObject만 지울 경우 datasourceId 빈 배열( [] )로 유지
+				"dataobject_id_list" : delete_objects,
+				// 삭제하고자 하는 DataSource들 중에 파일 소스가 포함되어 있으면 FileType을 “EXCEL”로 명시해야 한다.
+				//csv 파일 제외. 내부버그
+				// 삭제하고자 하는 DataSource들이 DB만 있는 경우 빈 배열( [] ) 유지
+				"file_type" : []
+			]
+
+			content = requestAPI("${workspace_path}/json/${filename}", parsing_data)				  	
+
+			if (state_json["data_objects"].size() != 0 ) stateFileUpdate(state_file, "data_objects", state_json["data_objects"].keySet() as ArrayList, delete_objects, "pop") // hypertdata data source id delete from state file
+			if (state_json["data_sources"].size() != 0 ) stateFileUpdate(state_file, "data_sources", state_json["data_sources"].keySet() as ArrayList, delete_datasources, "pop") // hypertdata data source id delete from state file						
+	
+		}
+	}
+
+	// 3.8. 프로젝트 자원 삭제 API
+	// 3.9. 프로젝트 삭제 API
+	if(state_json["local_projects"].size() != 0){
+		stage('clear_project_resources & clear_project'){    			
+			println("stage : clear_project_resources & clear_project")    			
+
+			state_json["local_projects"].each{
+				delete_project = it
+
+				parsing_data =[
+				"hyperdata_url" : hyperdata_url,
+				"token" : token,		
+				"id_list" : delete_project.value			
+			]
+							
+			filename = "308_delete_project_resources.json"	
+			content = requestAPI("${workspace_path}/json/${filename}", parsing_data)   				
+			
+			filename = "309_delete_project.json"	
+			content = requestAPI("${workspace_path}/json/${filename}", parsing_data)   
+
+			stateFileUpdate(state_file, "local_projects", delete_project.key, delete_project.value, "pop")
+			}
+		}
+	}
+
+	// 2.3. User 삭제 API
+	if(state_json["test_accounts"].size() != 0){
+		stage('clear_user'){    			
+			println("stage : clear_user")
+			filename = "203_delete_user.json"		
+			state_json["test_accounts"].each{
+				delete_user = it
+				
+				parsing_data =[
+					"hyperdata_url" : hyperdata_url,
+					"token" : token,		
+					"hyperdata_user_id_enc" : delete_user.value					
+				]	
+
+				content = requestAPI("${workspace_path}/json/${filename}", parsing_data)				
+				stateFileUpdate(state_file, "test_accounts", delete_user.key, delete_user.value, "pop")
+			}    			
+	 	}
+	}
+} // stage clear_set
+
+
+
+stage('202_create_user_set'){
+
+	test_accounts_info.each{ 
+		test_account_info = it
+  		println("stage : 101_get_encrypt")
+  		// data Encrypt
+  		filename = "101_get_encrypt.json"		
+		parsing_data = [
+			"hyperdata_url" : hyperdata_url,
+			"id_list" : test_account_info.value
+		]
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 		
+		test_accounts_info_encrypt[test_account_info.key] = content.dto.idList
+
+		println("stage : 202_create_user")
+		// 202 User 생성 API
+		filename = "202_create_user.json"		
+		test_acc_encrypt = test_accounts_info_encrypt[test_account_info.key]
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"token" : token,		
+			"hyperdata_user_id_enc" : test_acc_encrypt[0],
+			"hyperdata_user_pw_enc" : test_acc_encrypt[1],
+			"hyperdata_user_name_enc" : test_acc_encrypt[2],
+			"hyperdata_user_email_enc" : test_acc_encrypt[3],
+			"hyperdata_uesr_phone_enc" : test_acc_encrypt[4]
+		]
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 
+		stateFileUpdate(state_file, "test_accounts", "${test_account_info.value[0]}", "${test_acc_encrypt[0]}", "push") // hypertdata user id save to state file
+	}	
+	
+} // 202_create_user_set
+
+
+stage('create_project_set'){		
+
+	// 3.1. 프로젝트 생성 API
+	stage('301_create_project'){
+
+		println("stage : 301_create_project")
+		filename = "301_create_project.json"
+		test_account_info = test_accounts_info["PM"]			
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"token" : token,		
+			"user_id" : test_account_info[0],
+			"name" : local_project_info[0],
+			"author" : local_project_info[1],
+			"description" : local_project_info[2]
+		]
+			
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 				
+		projectInfo = content.dto
+
+		local_project_id = projectInfo.id
+		stateFileUpdate(state_file, "local_projects", "${local_project_info[0]}", "${local_project_id}", "push") // hypertdata local project id save to state file
+	}
+
+	// 3.2. 프로젝트 PM 등록 API
+	stage('302_assign_pm'){
+		println("stage : 302_assign_pm")
+		filename = "302_assign_pm.json"	
+		test_account_info = test_accounts_info["PM"]	
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"project_id" : local_project_id,
+			"token" : token,		
+			"user_id" : test_account_info[0]
+		]
+			
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 				
+	
+	} 
+
+	stage('303_default_ds'){
+		println("stage : 303_default_ds")
+		filename = "303_default_ds.json"		
+		test_account_info = test_accounts_info["PM"]
+		pw_aes = sh(script:"java AesCryptUtil ${test_account_info[1]} ${key}", returnStdout: true).trim(); // AES256 암호화 알고리즘
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"project_id" : local_project_id,
+			"token" : token,		
+			"hyperdata_user_id" : test_account_info[0],
+			"hyperdata_user_pw_enc" : pw_aes
+		]
+			
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+	}
+}// createProject_Set
+
+
+
+stage('create_ds_do_set'){
+	// 4.1 Data Source 등록 API
+	stage('401_create_ds'){    
+		println("stage : 401_create_ds")
+		filename = "401_create_ds.json"		
+		pw_aes = sh(script:"java AesCryptUtil ${db_info[1]} ${key}", returnStdout: true).trim(); // AES256 암호화 알고리즘
+
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"project_id" : global_project_id,
+			"token" : token,		
+			"user_id" : admin_info[0],
+			"datasource_name" : db_info[2],
+			"db_user_id" : db_info[0],
+			"db_user_pw_enc" : pw_aes
+		]
+			
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		dsInfo = content.dto
+		
+		datasource_id = dsInfo.id
+		stateFileUpdate(state_file, "data_sources", "${db_info[2]}", "${datasource_id}", "push") // hypertdata data source id save to state file
+
+	}
+
+	// 4.3. Data Source 조회 API
+	stage('403_get_ds_info'){
+		println("stage : 403_get_ds_info")
+		filename = "403_get_ds_info.json"		
+
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"datasource_id" : datasource_id,
+			"token" : token,		
+			"user_id" : admin_info[0],
+		]
+			
+		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)	
+	}
+
+	// 4.4. Data Source 특정 테이블 조회 API
+	stage('404_get_ds_table'){
+		println("stage : 404_get_ds_table")
+		filename = "404_get_ds_table.json"		
+
+
+		objects_meta.each{
+
+			parsing_data =[
+				"hyperdata_url" : hyperdata_url,
+				"datasource_id" : datasource_id,
+				"token" : token,		
+				"user_id" : admin_info[0],
+				"object_name" : it.key,
+				"object_type" : it.value
+			]
+
+			content = requestAPI("${workspace_path}/json/${filename}", parsing_data)	
+
+			objects_col_info[it.key] = content.dto.colInfoList
+		}
+		
+	}
+
+	// 4.5. Data Object 생성 API
+	stage('405_create_do'){
+		println("stage : 405_create_do")
+		filename = "405_create_do.json"
+		
+		objects_col_info.each{
+			object_col_info = it.value			
+			object_col_dto = ''
+			for(i=0; i < object_col_info.size() ; i++ ){
+			    object_col_dto = object_col_dto + '''{
+			            							"name" : "''' + object_col_info[i].name + '''" ,
+			            							"type" : "''' + object_col_info[i].type + '''" ,
+			            							"typeChange" : "''' + object_col_info[i].type + '''"
+			          							},'''
+			}		
+
+			parsing_data =[
+				"hyperdata_url" : hyperdata_url,
+				"datasource_id" : datasource_id,
+				"token" : token,
+				"user_id" : admin_info[0],
+				"object_name" : it.key,
+				"object_type" : objects_meta[it.key],
+				"data_object_cols" : object_col_dto
+			]
+
+			content = requestAPI("${workspace_path}/json/${filename}", parsing_data)	
+			dataObjectInfoList = content.dto.dataObjectInfoList
+
+			object_id = dataObjectInfoList[0].dataobjectId
+			object_ids[it.key] = object_id
+			stateFileUpdate(state_file, "data_objects", "${it.key}", "${object_id}", "push") // hypertdata data source id save to state file
+		}
+
+	}
+
+}
+
+parallel 'userAPI' : {
+	// 2.4. User 정보 조회 API
+    stage('204_get_user_info'){
+    	filename = "204_get_user_info.json"	
+
+    	test_accounts_info.each{ 
+    		test_account_info = it.value
+    		    		
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"token" : token,		
+	    		"user_id" : test_account_info[0],
+	    	]
+
+    		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+			userInfo = content.dto.userInfoList		
+
+			test_accounts_info[it.key].add(userInfo.groupId.join(','))
+		}
+    }
+
+    // 2.5. User 정보 수정 API
+    stage('205_edit_user'){
+    	
+		filename = "101_get_encrypt.json"		
+		replace_phone = "010-1111-1111"
+		parsing_data =[
+			"hyperdata_url" : hyperdata_url,
+			"id_list" : replace_phone
+		]
+ 		
+ 		content = requestAPI("${workspace_path}/json/${filename}", parsing_data) 		
+		replace_phone_enc = content.dto.idList
+
+
+    	filename = "205_edit_user.json"	
+    	test_accounts_info.each{ 
+    		test_account_info = it.value
+    		test_acc_encrypt = test_accounts_info_encrypt[it.key]
+	    	// user phone update : test_acc_encrypt[4] -> test_acc_encrypt[5]    	
+	    	parsing_data = [
+	    		"hyperdata_url" : hyperdata_url,
+	    		"token" : token,		
+	    		"user_id" : admin_info[0],
+	    		"hyperdata_user_id_enc" : test_acc_encrypt[0],
+	    		"hyperdata_user_pw_enc" : test_acc_encrypt[1],
+	    		"hyperdata_user_name_enc" : test_acc_encrypt[2],
+	    		"hyperdata_user_email_enc" : test_acc_encrypt[3],
+	    		"hyperdata_user_phone_enc" : replace_phone_enc[0], 
+	    	]
+
+    		content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		}
+    }
+
+    // 2.6. User가 속한 프로젝트 조회 API
+    stage('206_get_user_project'){
+    	filename = "206_get_user_project.json"	
+    	test_accounts_info.each{ 
+    		test_account_info = it.value
+
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"token" : token,		
+	    		"user_id" : test_account_info[0]
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		}
+    }
+
+    // 2.7. 전체 User 리스트 조회 API
+    stage('207_get_all_users'){
+
+    	filename = "207_get_all_users.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"token" : token
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+      	userInfoList = content.dto.userInfoList      
+    }
+},'projectAPI' : {		
+	sleep(1.5) // parallel 이슈 : 동시에 병렬 수행되면, 정상적으로 API를 못날림 // 시간 간격을 두고 실행해야 함.
+
+	// 3.4. 프로젝트 멤버 관리 API
+	stage('304_assign_member'){
+		filename = "304_assign_member.json"	
+
+		project_member_simple_list = ''		
+		test_accounts_info.each{
+			if(it.key != "PM"){
+				project_member_simple_list = project_member_simple_list + '''{
+																				"projectId" : "''' + local_project_id + '''",
+																				"groupId" : "''' + it.value.last() + '''",
+																				"groupType" : "INDIVIDUAL",
+																				"groupPermissionId" : "30"
+																			},'''
+			}
+		}
+
+		parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"project_id" : local_project_id,
+    		"token" : token,
+    		"user_id" : admin_info[0],
+    		"project_member_simple_list" : project_member_simple_list
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+
+	}
+
+	// 3.5. 프로젝트 멤버의 역할 관리 API
+	stage('305_assign_role'){
+		filename = "305_assign_role.json"	
+
+		user_project_role_list = ''
+		test_accounts_info.each{
+			if(it.key != "PM"){
+				user_project_role_list = user_project_role_list + '''{
+																		"projectId" : "''' + local_project_id + '''",
+																		"userId" : "''' + it.value[0] + '''",
+																		"roleName" : "''' + it.key + '''"																	
+																	},'''
+			}
+		}
+
+		parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"token" : token,
+    		"user_id" : admin_info[0],
+    		"user_project_role_list" : user_project_role_list
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+	}
+
+	// 3.10. 프로젝트가 소유중인 작업들 조회 API
+    stage('310_get_project_resource'){
+    	filename = "310_get_project_resource.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"project_id" : local_project_id,
+    		"token" : token
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+    }
+
+    // 3.11. 프로젝트용 DB 계정 조회 API
+    stage('311_get_editor_account'){
+    	filename = "311_get_editor_account.json"	    	
+
+    	test_accounts_info.each{ 
+    		test_account_info = it.value
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"project_id" : local_project_id,
+	    		"token" : token,
+	    		"user_id" : test_account_info[0]
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+			sqlEditorUserInfo = content.dto.sqlEditorUserInfoList      
+		}
+    }
+
+    // 3.12. 프로젝트 DS, DO 목록 조회 API
+    stage('312_get_project_dsdo'){
+    	filename = "312_get_project_dsdo.json"	
+    	test_account_info = test_accounts_info["PM"]			
+
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"project_id" : local_project_id,
+    		"token" : token,
+    		"user_id" : test_account_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+    }
+
+    // 3.6. 모든 프로젝트 정보 조회 API
+    stage('306_get_all_projects'){
+    	filename = "306_get_all_projects.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"token" : token
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+		projectList = content.dto.project      
+    }
+
+    // 3.7. 프로젝트용 모든 DB 계정 조회 API
+    stage('307_get_all_editor_accounts'){
+    	filename = "307_get_all_editor_accounts.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"token" : token
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+		sqlEditorUserInfo = content.dto.sqlEditorUserInfoList      
+    }    
+}, 'dataInfoAPI' : {    	
+
+	sleep(3) // parallel 이슈 : 동시에 병렬 수행되면, 정상적으로 API를 못날림 // 시간 간격을 두고 실행해야 함.
+
+	Random rnd = new Random()
+	object_id_list = object_ids.values()
+	object_id = object_id_list[rnd.nextInt(object_id_list.size())]
+
+	// 4.7. 데이터 개수 조회 API
+	stage('407_get_do_rowcount') {
+		filename = "407_get_do_rowcount.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"dataobject_id" : object_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    		
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	
+	}
+
+	// 4.8. 데이터 컬럼 정보 조회 API
+	stage('408_get_do_columns'){
+		filename = "408_get_do_columns.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"dataobject_id" : object_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    		
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	    
+	}
+
+	// 4.9. 데이터 내용 조회 API
+	stage('409_get_do_contents'){
+		filename = "409_get_do_contents.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"dataobject_id" : object_id,
+    		"size" : "100",
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    		
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    	    
+	}
+
+	// 4.10. 지정한 위치의 데이터 내용 조회 API
+	stage('410_get_do_contents_rownum'){
+		filename = "410_get_do_contents_rownum.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"dataobject_id" : object_id,
+    		"start_rownum" : "10",
+    		"end_rownum" : "100",
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    		
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)    
+	}
+
+	// 4.11. 정형,반정형 데이터 다운로드 API
+	stage('411_download_do_by_sql'){
+		filename = "411_download_do_by_sql.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"dataobject_id" : object_id,
+    		"file_name" : "test",
+    		"file_type" : "csv",
+    		"sql" : "SELECT%20*%20FROM%20DATA_OBJECT_ID",
+    		"charset" : "UTF-8",
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    		
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+
+	}		
+}, 'dataShareAPI' : {
+
+	sleep(4.5) // parallel 이슈 : 동시에 병렬 수행되면, 정상적으로 API를 못날림 // 시간 간격을 두고 실행해야 함.
+
+	// 5.1. 데이터 공개 API
+	stage('501_export_do'){
+		filename = "501_export_do.json"	
+
+		object_ids.each{
+			object_id = it.value			
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"pdp_project_id" : pdp_project_id,
+	    		"dataobject_id" : object_id,
+	    		"token" : token,
+	    		"user_id" : admin_info[0]
+	    		
+	    	]
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+
+	    	stateFileUpdate(state_file, "exported_data_objects", "${it.key}", "${object_id}", "push") // hypertdata data source id save to state file
+	    }
+	}
+
+	// 5.2. 공개한 데이터 메타등록 API
+	stage('502_export_do_push_meta'){
+		filename = "502_export_do_push_meta.json"	
+		object_ids.each{
+			object_id = it.value
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"global_project_id" : global_project_id,    		
+	    		"token" : token,
+	    		"user_id" : admin_info[0],
+	    		"dataobject_id" : object_id
+	    		
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+		}
+	}
+
+	// 5.5. 공개된 데이터 조회 API
+	stage('505_get_shared_do_pdp'){		
+		filename = "505_get_shared_do_pdp.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"pdp_project_id" : pdp_project_id,    		
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+	}
+
+	// 5.6. 데이터 공유 요청 API
+	stage('506_request_share'){	    
+		filename = "506_request_share.json"	
+		object_ids.each{
+			object_id = it.value
+			expirationTime = today.plus(7); // today + 7days		
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"local_project_id" : local_project_id,    		
+	    		"dataobject_id" : object_id,
+	    		"token" : token,
+	    		"user_id" : admin_info[0],
+	    		"expiration_time" : expirationTime.format('yyyy-MM-dd HH:mm:ss.S', tz)
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+	    }
+	}
+
+	// 5.9. 데이터 공유 요청 현황 조회 API
+	stage('509_get_pending_requests_global'){
+		filename = "509_get_pending_requests_global.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"global_project_id" : global_project_id,    	
+    		"target_project_id"	 : local_project_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+	}
+
+	// 5.13. 공유 요청중인 데이터 조회 API
+	stage('513_get_pending_requests_local'){
+		filename = "513_get_pending_requests_local.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"local_project_id"	 : local_project_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+	}
+
+
+
+	object_id_list = object_ids.values()
+	// 5.10. 데이터 공유 요청 승인 API (구 방식)
+	stage('510_approve_share'){
+		object_id = object_id_list.pop()
+		name = object_ids.find{it.value==object_id}?.key
+
+		filename = "510_approve_share.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"local_project_id"	 : local_project_id,
+    		"dataobject_id"	 : object_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)
+    
+    	stateFileUpdate(state_file, "shared_data_objects", "${name}", ["${local_project_id}":"${object_id}"], "push") // hypertdata data source id save to state file
+    	shared_object_list.add(object_id)
+	}
+
+
+	if (object_id_list.size()){
+		// 5.11. 데이터 공유 요청 거절 API
+		stage('511_reject_share'){
+			object_id = object_id_list.pop()
+
+			filename = "511_reject_share.json"	
+	    	parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"local_project_id"	 : local_project_id,
+	    		"dataobject_id"	 : object_id,
+	    		"token" : token,
+	    		"user_id" : admin_info[0]
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)		
+		}
+	}	
+
+
+	// 5.7. 데이터 공유 갱신 API
+	stage('507_extend_share'){
+		filename = "507_extend_share.json"	
+
+		shared_object_list.each{
+			object_id = it
+			expirationTime = today.plus(30); // today + 30days		
+
+			parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"local_project_id"	 : local_project_id,
+	    		"dataobject_id" : object_id,
+	    		"token" : token,
+	    		"user_id" : admin_info[0],
+	    		"expiration_time" : expirationTime.format('yyyy-MM-dd HH:mm:ss.S', tz)	    		
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)		
+
+	    	object_id_list.add(it)
+		}		
+
+	}
+
+
+	if (object_id_list.size()){
+		
+		// 5.14. 공유 요청중인 DO 일괄 승인 API
+		stage('514_approve_all_share'){
+
+			filename = "514_approve_all_share.json"	
+
+			share_approve_info_list = ''
+
+			for(i=0; i < object_id_list.size(); i++){
+				object_id = object_id_list[i]
+				name = object_ids.find{it.value==object_id}?.key
+
+				share_approve_info_list = share_approve_info_list + '''{
+																		"dataObjectId" : ''' + object_id + ''',
+																		"projectId" : ''' + local_project_id + '''
+																	},'''								
+
+			}
+
+			parsing_data =[
+	    		"hyperdata_url" : hyperdata_url,
+	    		"global_project_id"	 : global_project_id,
+	    		"token" : token,
+	    		"user_id" : admin_info[0],
+	    		"share_approve_info_list" : share_approve_info_list
+	    	]
+
+	    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)		
+
+	    	for(i=0; i < object_id_list.size(); i++){
+	    		object_id = object_id_list[i]
+				name = object_ids.find{it.value==object_id}?.key
+	    		stateFileUpdate(state_file, "shared_data_objects", "${name}", ["${local_project_id}":"${object_id_list[i]}"], "push") // hypertdata data source id save to state file
+	    	}
+	    	
+		}
+	}	
+
+	// 5.12. 공유된 데이터 조회 API
+	stage('512_get_shared_do_local'){
+		filename = "512_get_shared_do_local.json"	
+    	parsing_data =[
+    		"hyperdata_url" : hyperdata_url,
+    		"local_project_id" : local_project_id,
+    		"token" : token,
+    		"user_id" : admin_info[0]
+    	]
+
+    	content = requestAPI("${workspace_path}/json/${filename}", parsing_data)		
+	}	
+	
+}
+
+}

@@ -1,0 +1,8 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata20/#/main/autoLogin?userId={hyperdata_user_id_enc}&passwd={hyperdata_user_pw_enc}&url={url_encrypt}",
+	"header": {
+		"Content-Type" : "application/json"
+	},
+	"data_raw": ""
+}

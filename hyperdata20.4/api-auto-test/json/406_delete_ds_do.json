@@ -1,0 +1,16 @@
+{
+	"method" : "DELETE",
+	"url" : "{hyperdata_url}/hyperdata/web-service/datasources",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"datasourceId" : [ "{data_source_id_list}" ], 
+			"dataobjectId" : [ "{dataobject_id_list}" ],
+			"fileType" : [ "{file_type}" ]
+		}
+	}
+}

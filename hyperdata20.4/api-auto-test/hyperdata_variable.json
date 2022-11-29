@@ -1,0 +1,17 @@
+{
+    "hyperdata_url" : "https://192.168.220.214:30090",
+    "admin_info": ["admin", "admin"],
+    "test_accounts_info": {
+        "PM": ["api_test_pm", "test123!", "test_pm" , "test_pm@tmax.co.kr", "010-0000-0000"],
+	"DBA" : ["api_test_dba", "test123!", "test_dba" , "test_dba@tmax.co.kr", "010-0000-0000"],
+	"DataAnalyst" : ["api_test_analyst", "test123!", "test_analyst" , "test_analyst@tmax.co.kr", "010-0000-0000"],
+	"EndUser" : ["api_test_user", "test123!", "test_user" , "test_user@tmax.co.kr", "010-0000-0000"]
+    },
+    "local_project_info": [ "jenkins_http_requests", "jenkins", "call_api" ],
+    "db_info": ["hyperdata_ex","tmax", "jenkins_api_tibero"],
+    "objects_meta": {
+	    "HYPERDATA.OBJECT_INFO":"Table",
+	    "HYPERDATA.AUDIT_LOG":"Table",
+	    "HYPERDATA.PROJECT_INFO":"Table"
+    }
+}

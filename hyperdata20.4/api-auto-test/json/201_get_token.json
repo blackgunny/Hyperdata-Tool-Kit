@@ -1,0 +1,15 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/Authenticate?action=Service",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "",
+		"userId" : ""
+	},
+	"data_raw": {
+		"dto" : {
+			"userId" : "{user_id_enc}",
+			"passwd" : "{user_pw_enc}"
+		}
+	}
+}

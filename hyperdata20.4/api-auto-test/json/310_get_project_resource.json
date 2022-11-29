@@ -1,0 +1,10 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata/web-service/projects/{project_id}/?action=JobDashboard",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "admin"
+	},
+	"data_raw": ""
+}

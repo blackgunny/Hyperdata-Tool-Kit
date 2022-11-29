@@ -1,0 +1,19 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/User",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "admin"
+	},
+	"data_raw": {
+		"dto" : {
+			"token" : "user" ,
+			"userId" : "{hyperdata_user_id_enc}" ,
+			"passwd" : "{hyperdata_user_pw_enc}" ,
+			"userName" : "{hyperdata_user_name_enc}" ,
+			"userEmail" : "{hyperdata_user_email_enc}" ,
+			"userPhoneNumber" : "{hyperdata_uesr_phone_enc}"
+		}
+	}
+}

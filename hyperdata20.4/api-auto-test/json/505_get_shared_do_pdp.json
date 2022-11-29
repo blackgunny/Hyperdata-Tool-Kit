@@ -1,0 +1,10 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata20/projects/{pdp_project_id}/ImportedData?status=Approved",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": ""
+}

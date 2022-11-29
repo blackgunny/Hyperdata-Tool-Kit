@@ -1,0 +1,10 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata/web-service/projects/{project_id}/datasources?action=TreeList",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": ""
+}

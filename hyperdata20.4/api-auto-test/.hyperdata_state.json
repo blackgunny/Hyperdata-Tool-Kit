@@ -1,0 +1,32 @@
+{
+    "test_accounts": {
+        "api_test_pm": "U2FsdGVkX19jM1JmY0cwPXNry5mZ7KgUZpHmyCKOCz8=",
+        "api_test_analyst": "U2FsdGVkX19jM1JmWVc1aOnv5Ssyl+VQdbJI/diEUZ4n0fBbHq9ZBnJqI1pFsSQ1",
+        "api_test_user": "U2FsdGVkX19jM1JmZFhObAyEDZerLUroQ5seamf6+fg=",
+        "api_test_dba": "U2FsdGVkX19jM1JmWkdKaAMWKNMA7GvcZhOOglEn0W4="
+    },
+    "data_objects": {
+        "HYPERDATA.OBJECT_INFO": "3127",
+        "HYPERDATA.AUDIT_LOG": "3128",
+        "HYPERDATA.PROJECT_INFO": "3129"
+    },
+    "local_projects": {
+        "jenkins_http_requests": "3124"
+    },
+    "exported_data_objects": {
+        "HYPERDATA.OBJECT_INFO": "3127",
+        "HYPERDATA.AUDIT_LOG": "3128",
+        "HYPERDATA.PROJECT_INFO": "3129"
+    },
+    "data_sources": {
+        "jenkins_api_tibero": "3126"
+    },
+    "shared_data_objects": {
+        "HYPERDATA.OBJECT_INFO": {
+            "3124": "3127"
+        },
+        "HYPERDATA.PROJECT_INFO": {
+            "3124": "3129"
+        }
+    }
+}

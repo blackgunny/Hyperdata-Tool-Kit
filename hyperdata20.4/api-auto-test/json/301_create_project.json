@@ -1,0 +1,16 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/web-service/projects",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"name" : "{name}" ,
+			"author" : "{author}", 
+			"description" : "{description}"
+		}
+	}
+}

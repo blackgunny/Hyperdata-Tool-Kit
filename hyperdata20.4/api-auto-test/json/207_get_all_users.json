@@ -1,0 +1,9 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/User",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}"
+	},
+	"data_raw": ""
+}

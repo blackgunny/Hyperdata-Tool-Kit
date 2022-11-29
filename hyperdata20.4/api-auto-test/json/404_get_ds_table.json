@@ -1,0 +1,10 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata/web-service/datasources/{datasource_id}?action=DescTable&tablename={object_name}&dataobjecttype={object_type}",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": ""
+}

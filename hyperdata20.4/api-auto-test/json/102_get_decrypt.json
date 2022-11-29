@@ -1,0 +1,14 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/CriticalInfoDecipher",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "",
+		"userId" : ""
+	},
+	"data_raw": {
+		"dto" : {
+			"idList" : ["{id_list}"]
+		}
+	}
+}

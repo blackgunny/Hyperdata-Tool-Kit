@@ -1,0 +1,10 @@
+{
+	"method" : "GET",
+	"url" : "{hyperdata_url}/hyperdata20/dataobjects/{dataobject_id}/download/sql/?fileName={file_name}&contentType={file_type}&sql={sql}&charset={charset}",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": ""
+}

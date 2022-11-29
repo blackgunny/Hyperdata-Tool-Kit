@@ -1,0 +1,21 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/web-service/datasources/{datasource_id}/dataobjects",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"dataObjectInfoList" : [{
+				"name" : "{object_name}" , 
+				"outCols" : [{data_object_cols}],
+				"shareRelation" : [],
+				"sourceTableName" : "{object_name}" ,
+				"subtype" : "{object_type}" , 
+				"description" : null
+			}]
+		}
+	}
+}

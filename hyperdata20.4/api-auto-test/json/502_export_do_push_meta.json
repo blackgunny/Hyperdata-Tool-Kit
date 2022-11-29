@@ -1,0 +1,14 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/api/v1/hyperdata20/projects/{global_project_id}/push/meta",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"idList" : [ "{dataobject_id}" ]
+		}
+	}
+}

@@ -1,0 +1,29 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/web-service/projects/{project_id}/datasources",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "admin"
+	},
+	"data_raw": {
+		"dto" : {
+			"name" : "#Default DataSource" ,
+			"domainId" : "domain" ,
+			"version" : 1 ,
+			"acessible" : "" ,
+			"dataSourceType" : "DB" ,
+			"dbSourceParam" : {
+				"userId" : "{hyperdata_user_id}" ,
+				"userPw" : "{hyperdata_user_pw_enc}" ,
+				"ip" : "" ,
+				"port" : 0 ,
+				"sid" : "" ,
+				"connString" : "tibero" ,
+				"dbVendor" : "TIBERO"
+			},
+			"description" : "Default DataSource. You can create tables. Cannot delete."
+
+		}
+	}
+}

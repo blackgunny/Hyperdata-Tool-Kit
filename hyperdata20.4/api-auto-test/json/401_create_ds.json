@@ -1,0 +1,28 @@
+{
+	"method" : "POST",
+	"url" : "{hyperdata_url}/hyperdata/web-service/projects/{project_id}/datasources",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"affiliation" : "",
+			"dataSourceType" : "DB" ,
+			"domainId": "domain",
+			"name" : "{datasource_name}",
+			"version" : 1,
+			"dbSourceParam": {
+				"connString" : "tibero",
+				"dbVendor" : "TIBERO",
+				"ip" : "",
+				"port" : null,
+				"sid" : "",
+				"userId" : "{db_user_id}",
+				"userPw" : "{db_user_pw_enc}"
+			}
+		}
+
+	}
+}

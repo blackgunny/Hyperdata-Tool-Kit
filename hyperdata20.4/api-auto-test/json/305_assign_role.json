@@ -1,0 +1,14 @@
+{
+	"method" : "PUT",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/UserProjectRole",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "{user_id}"
+	},
+	"data_raw": {
+		"dto" : {
+			"userProjectRoleList" : [{user_project_role_list}]
+		}
+	}
+}

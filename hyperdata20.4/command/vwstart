@@ -1,0 +1,9 @@
+#!/bin/bash
+
+source hyperdata_commamd.cfg
+
+kubectl exec -n $NAMESPACE $(kubectl get po -n $NAMESPACE | grep $HD_NAME) -i -- /bin/bash -c 'source ~/.bashrc && startManagedServer -server viewer -u jeus -p jeus'
+
+kubectl exec -n $NAMESPACE $(kubectl get po -n $NAMESPACE | grep $HD_NAME) -it -- /bin/bash -c 'source ~/.bashrc && jeusadmin -u jeus -p jeus server-info && ps -ef | grep -m 1 spring'
+
+

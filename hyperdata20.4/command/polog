@@ -1,0 +1,5 @@
+#!/bin/bash
+
+source hyperdata_commamd.cfg
+
+kubectl exec -n $NAMESPACE $(kubectl get po -n $NAMESPACE | grep $HD_NAME | awk '{print $1}') -it -- tail -f $PO_LOG_FILE

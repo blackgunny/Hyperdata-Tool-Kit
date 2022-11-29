@@ -1,0 +1,15 @@
+{
+	"method" : "DELETE",
+	"url" : "{hyperdata_url}/hyperdata/hd-auth/User",
+	"header": {
+		"Content-Type" : "application/json",
+		"Authorization" : "{token}",
+		"userId" : "admin"
+	},
+	"data_raw": {
+		"dto" : {
+			"userInfoList" : [{"userId" : "{hyperdata_user_id_enc}"}]
+		}
+	}
+	
+}

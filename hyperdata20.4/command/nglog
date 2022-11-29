@@ -1,0 +1,5 @@
+#!/bin/bash
+
+source hyperdata_commamd.cfg
+
+kubectl logs -n $NAMESPACE -f --tail=100 $(kubectl get po -n $NAMESPACE | grep $NGX_NAME | awk '{print $1}')
