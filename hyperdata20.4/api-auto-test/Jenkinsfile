@@ -141,9 +141,8 @@ node {
 stage ('init') {
 
 	workspace_path = sh(script:"pwd", returnStdout: true).trim();
-	println(workspace_path)
-	//state_file = new File("${workspace_path}/${hyperdata_state_file}")	
-	state_file = new File("${hyperdata_state_file}")	
+	workspace_path = "${workspace_path}/hyperdata20.4/api-auto-test"
+	state_file = new File("${workspace_path}/${hyperdata_state_file}")	
 
 	stage('get_variable_from_json_file'){
 		println("stage : get_variable_from_json_file")
