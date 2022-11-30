@@ -140,8 +140,8 @@ def requestAPI(def filepath, def parsing_data){
 node {
 stage ('init') {
 
-	workspace_path = sh(script:"pwd", returnStdout: true).trim();
-	workspace_path = "${workspace_path}/hyperdata20.4/api-auto-test"
+	//workspace_path = sh(script:"pwd", returnStdout: true).trim();
+	workspace_path = "."
 	state_file = new File("${workspace_path}/${hyperdata_state_file}")	
 
 	stage('get_variable_from_json_file'){
